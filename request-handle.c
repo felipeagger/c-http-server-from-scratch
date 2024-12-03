@@ -51,17 +51,7 @@ char* getParamQueryString(char buffer[BUF_SIZE], const char *param_name) {
     return NULL;
 }
 
-void handle_request(int client_fd) {
-    char buffer[BUF_SIZE];
-    int bytes_read = read(client_fd, buffer, BUF_SIZE - 1);
-
-    if (bytes_read < 0) {
-        perror("Erro ao ler do cliente");
-        close(client_fd);
-        return;
-    }
-
-    buffer[bytes_read] = '\0'; // Garante que o buffer seja uma string
+void handle_request(int client_fd, char *buffer) {
     printf("Requisição recebida:\n%s\n", buffer);
 
     //params

@@ -1,11 +1,11 @@
 # c-http-server-from-scratch
 
-This is a implementation of Http server using directly Linux SystemCalls.
+This is a implementation of Http server using Linux SystemCalls.
 
 There are some implementations:
 - simple-server.c: Using only accept syscall.
 - epoll-server.c: Using epoll syscall with 10 events.
-- io_uring.c: TODO.
+- uring-server.c: Using io_uring (liburing) with queue depth 256. 
 
 ### Default port is 8080.
 
@@ -20,3 +20,4 @@ There are some implementations:
 # Entrypoints:
 - /home/simple-server
 - /home/epoll-server
+- /home/uring-server

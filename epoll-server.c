@@ -98,7 +98,7 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    printf("Servidor ouvindo na porta %d\n", PORT);
+    printf("epoll server listening on port %d\n", PORT);
 
     while (1) {
         int n = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -113,7 +113,18 @@ int main() {
                 printf("Nova conexão aceita\n");
             } else {
                 // process request
-                handle_request(events[i].data.fd);
+                char buffer[BUFFER_SIZE];
+                int bytes_read = read(events[i].data.fd, buffer, BUFFER_SIZE - 1);
+
+                if (bytes_read < 0) {
+                    perror("Erro ao ler do cliente");
+                    close(events[i].data.fd);
+                    continue;
+                }
+
+                buffer[bytes_read] = '\0';
+
+                handle_request(events[i].data.fd, buffer);
             }
         }
     }

@@ -73,7 +73,7 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    printf("Servidor ouvindo na porta %d...\n", PORT);
+    printf("simple server listening on port %d...\n", PORT);
 
     // 5. Loop principal para aceitar conexões
     while (1) {
@@ -90,7 +90,19 @@ int main() {
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
-        handle_request(client_fd);
+
+        char buffer[BUF_SIZE];
+        int bytes_read = read(client_fd, buffer, BUF_SIZE - 1);
+
+        if (bytes_read < 0) {
+            perror("Erro ao ler do cliente");
+            close(client_fd);
+            continue;
+        }
+
+        buffer[bytes_read] = '\0';
+
+        handle_request(client_fd, buffer);
     }
 
     close(server_fd);
