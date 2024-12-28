@@ -14,6 +14,7 @@
 #define QUEUE_DEPTH             256
 #define READ_SZ                 8192
 #define BUFFER_SIZE             2048
+#define WORKERS 3
 
 #define EVENT_TYPE_ACCEPT       0
 #define EVENT_TYPE_READ         1
@@ -30,6 +31,8 @@ struct request {
 };
 
 struct io_uring ring;
+
+ThreadPool pool;
 
 /*
  One function that prints the system call and the error details
@@ -173,7 +176,8 @@ int handle_client_request(struct request *req) {
     strncpy(args->buffer, http_request, BUFFER_SIZE - 1);
     args->buffer[BUFFER_SIZE - 1] = '\0';
 
-    handle_request(args);
+    //handle_request(args); //sync
+    thread_pool_add(&pool, handle_request, args); //async
     return 0;
 }
 
@@ -181,6 +185,8 @@ void server_loop(int server_socket) {
     struct io_uring_cqe *cqe;
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
+
+    thread_pool_init(&pool, WORKERS, QUEUE_DEPTH);
 
     add_accept_request(server_socket, &client_addr, &client_addr_len);
 
