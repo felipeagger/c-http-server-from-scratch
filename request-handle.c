@@ -5,13 +5,14 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <signal.h>
+//#include <signal.h>
 #include <string.h>
 #include <unistd.h>
 #include "cpu-bound.h"
 #include "request-handle.h"
+#include "threadpool.h"
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 2048
 
 
 char* getParamQueryString(char buffer[BUF_SIZE], const char *param_name) {
@@ -51,11 +52,11 @@ char* getParamQueryString(char buffer[BUF_SIZE], const char *param_name) {
     return NULL;
 }
 
-void handle_request(int client_fd, char *buffer) {
-    printf("Requisição recebida:\n%s\n", buffer);
+void handle_request(TaskArgs* args) {
+    //printf("Requisição recebida:\n%s\n", args->buffer);
 
     //params
-    char *timeout = getParamQueryString(buffer, "timeout");
+    char *timeout = getParamQueryString(args->buffer, "timeout");
     if (timeout == NULL) {
         timeout = "10"; // ms
     }
@@ -68,32 +69,35 @@ void handle_request(int client_fd, char *buffer) {
             "{\"message\": \"request completed\"}";
 
     // Routing
-    if (strstr(buffer, "GET /api/cpu-bound") == buffer) {
+    if (strstr(args->buffer, "GET /api/cpu-bound") == args->buffer) {
         
         simulateCPU(atoi(timeout));
 
-        write(client_fd, response, strlen(response));
+        write(args->client_fd, response, strlen(response));
 
-    } else if (strstr(buffer, "GET /api/io-bound") == buffer) {
+    } else if (strstr(args->buffer, "GET /api/io-bound") == args->buffer) {
         
         usleep(atoi(timeout) * 1000);
 
-        write(client_fd, response, strlen(response));
+        write(args->client_fd, response, strlen(response));
 
-    } else if (strstr(buffer, "GET /health") == buffer) {
+    } else if (strstr(args->buffer, "GET /health") == args->buffer) {
         
         // response 200
         char *resp = "HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\nHealthy!";
-        write(client_fd, resp, strlen(resp));
+        write(args->client_fd, resp, strlen(resp));
 
     } else {
         
         // response 404
         char *resp = "HTTP/1.1 404 Not Found\r\nContent-Length: 16\r\n\r\nRoute not found!";
-        write(client_fd, resp, strlen(resp));
+        write(args->client_fd, resp, strlen(resp));
     }
 
     //free(timeout);
     //free(resp_size);
-    close(client_fd);
+    if (strstr(args->buffer, "Connection: keep-alive") == NULL) {
+        close(args->client_fd);
+    }
+    free(args);
 }

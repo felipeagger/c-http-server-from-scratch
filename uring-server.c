@@ -8,10 +8,12 @@
 #include <liburing.h>
 #include <sys/utsname.h>
 #include "request-handle.h"
+#include "threadpool.h"
 
 #define DEFAULT_SERVER_PORT     8080
 #define QUEUE_DEPTH             256
 #define READ_SZ                 8192
+#define BUFFER_SIZE             2048
 
 #define EVENT_TYPE_ACCEPT       0
 #define EVENT_TYPE_READ         1
@@ -165,7 +167,13 @@ int handle_client_request(struct request *req) {
         return 0;
     }
 
-    handle_request(req->client_socket, http_request);
+    TaskArgs *args = malloc(sizeof(TaskArgs));
+    args->client_fd = req->client_socket;
+    args->buffer = malloc(BUFFER_SIZE * sizeof(char));
+    strncpy(args->buffer, http_request, BUFFER_SIZE - 1);
+    args->buffer[BUFFER_SIZE - 1] = '\0';
+
+    handle_request(args);
     return 0;
 }
 

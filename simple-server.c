@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include "request-handle.h"
+#include "threadpool.h"
 
 #define PORT 8080
 #define BACKLOG 10
@@ -102,7 +103,13 @@ int main() {
 
         buffer[bytes_read] = '\0';
 
-        handle_request(client_fd, buffer);
+        TaskArgs *args = malloc(sizeof(TaskArgs));
+        args->client_fd = client_fd;
+        args->buffer = malloc(BUF_SIZE * sizeof(char));
+        strncpy(args->buffer, buffer, BUF_SIZE - 1);
+        args->buffer[BUF_SIZE - 1] = '\0';
+
+        handle_request(args);
     }
 
     close(server_fd);

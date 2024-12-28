@@ -1,5 +1,5 @@
 CC = clang
-CFLAGS = -static -lm -Wall -Wextra -O2
+CFLAGS = -lm -Wall -Wextra -O2 -static
 
 # files
 SOURCES = simple-server.c epoll-server.c uring-server.c
@@ -13,7 +13,7 @@ simple: simple-server.c
 #	$(CC) $(CFLAGS) -o $@ $< -DFILE1_DEFINE
 
 epoll: epoll-server.c
-	$(CC) -o epoll-server epoll-server.c request-handle.c cpu-bound.c $(CFLAGS)
+	$(CC) -o epoll-server epoll-server.c threadpool.c request-handle.c cpu-bound.c $(CFLAGS) -pthread
 #	$(CC) $(CFLAGS) -o $@ $< -DFILE2_DEFINE -DADDITIONAL_FLAG
 
 uring: uring-server.c
