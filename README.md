@@ -4,7 +4,7 @@ This is a implementation of Http server using Linux SystemCalls.
 
 There are some implementations:
 - simple-server.c: Using only accept syscall.
-- epoll-server.c: Using epoll syscall with 10 events.
+- epoll-server.c: Using epoll syscall with 1000 events.
 - uring-server.c: Using io_uring (liburing) with queue depth 256. 
 
 ### Default port is 8080.
