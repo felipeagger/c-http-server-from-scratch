@@ -1,6 +1,7 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -8,11 +9,14 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <errno.h>
 #include "request-handle.h"
+#include "threadpool.h"
 
 #define PORT 8080
-#define MAX_EVENTS 10
-#define BUFFER_SIZE 1024
+#define MAX_EVENTS 1000
+#define WORKERS 3
+#define BUFFER_SIZE 2048
 
 int server_fd = -1; // global server socket
 
@@ -50,9 +54,11 @@ void set_nonblocking(int sock) {
 }
 
 int main() {
+    int opt = 1;
     int epoll_fd;
     struct sockaddr_in server_addr;
     struct epoll_event event, events[MAX_EVENTS];
+    ThreadPool pool;
 
     setup_signal_handler();
 
@@ -60,6 +66,13 @@ int main() {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         perror("Erro ao criar socket");
+        exit(EXIT_FAILURE);
+    }
+
+    // Configurando a opção SO_REUSEADDR 
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) { 
+        perror("Erro ao configurar socket");
+        close(server_fd);
         exit(EXIT_FAILURE);
     }
 
@@ -89,7 +102,7 @@ int main() {
     }
 
     // Adicionar o socket do servidor ao epoll
-    event.events = EPOLLIN; // Monitorar para leitura
+    event.events = EPOLLIN | EPOLLET; // Monitorar para leitura
     event.data.fd = server_fd;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &event) < 0) {
         perror("Erro ao adicionar ao epoll");
@@ -97,6 +110,9 @@ int main() {
         close(epoll_fd);
         exit(EXIT_FAILURE);
     }
+
+    //iniciar workers thread_pool
+    thread_pool_init(&pool, WORKERS, MAX_EVENTS);
 
     printf("epoll server listening on port %d\n", PORT);
 
@@ -106,29 +122,56 @@ int main() {
             if (events[i].data.fd == server_fd) {
                 // Aceitar nova conexão
                 int client_fd = accept(server_fd, NULL, NULL);
+                if (client_fd == -1) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        // Nenhuma conexão pendente 
+                        continue;
+                    } else {
+                        perror("Erro ao aceitar conexão");
+                        continue;
+                    }
+                }
                 set_nonblocking(client_fd);
                 event.events = EPOLLIN | EPOLLET;
                 event.data.fd = client_fd;
                 epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event);
-                printf("Nova conexão aceita\n");
+                //printf("Nova conexão aceita\n");
             } else {
                 // process request
                 char buffer[BUFFER_SIZE];
                 int bytes_read = read(events[i].data.fd, buffer, BUFFER_SIZE - 1);
 
                 if (bytes_read < 0) {
-                    perror("Erro ao ler do cliente");
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        continue;
+                    } else {
+                        perror("Erro ao ler do cliente");
+                        close(events[i].data.fd);
+                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+                        continue;
+                    }
+                } else if (bytes_read == 0) {
+                    // Conexão fechada pelo cliente
                     close(events[i].data.fd);
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
                     continue;
                 }
 
                 buffer[bytes_read] = '\0';
 
-                handle_request(events[i].data.fd, buffer);
+                TaskArgs *args = malloc(sizeof(TaskArgs));
+                args->client_fd = events[i].data.fd;
+                args->buffer = malloc(BUFFER_SIZE * sizeof(char));
+                strncpy(args->buffer, buffer, BUFFER_SIZE - 1);
+                args->buffer[BUFFER_SIZE - 1] = '\0';
+
+                //handle_request(events[i].data.fd, buffer); //sync
+                thread_pool_add(&pool, handle_request, args); //async
             }
         }
     }
 
     close(server_fd);
+    close(epoll_fd);
     return 0;
 }
